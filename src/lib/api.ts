@@ -1,5 +1,5 @@
-// API configuration - update this to your backend URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// API configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://shared-clipboard-i8et.vercel.app';
 
 export interface Clipboard {
   id: string;
