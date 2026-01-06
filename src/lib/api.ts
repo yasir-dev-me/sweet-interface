@@ -25,26 +25,35 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      mode: 'cors',
     });
 
     if (!response.ok) {
       throw new Error('Failed to create clipboard');
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('Create clipboard response:', data);
+    return data;
   }
 
   async getClipboard(clipboardId: string): Promise<Clipboard> {
-    const response = await fetch(`${this.baseUrl}/clipboard/${clipboardId}`);
+    console.log('Fetching clipboard:', clipboardId);
+    const response = await fetch(`${this.baseUrl}/clipboard/${clipboardId}`, {
+      mode: 'cors',
+    });
 
     if (!response.ok) {
+      console.error('Get clipboard failed:', response.status, response.statusText);
       if (response.status === 404) {
         throw new Error('Clipboard not found');
       }
       throw new Error('Failed to fetch clipboard');
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('Get clipboard response:', data);
+    return data;
   }
 
   async updateClipboard(clipboardId: string, content: string): Promise<Clipboard> {
