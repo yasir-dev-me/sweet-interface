@@ -30,8 +30,8 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
         setError(null);
         const data = await api.getClipboard(clipboardId);
         setClipboard(data);
-        setContent(data.content);
-        lastSavedContent.current = data.content;
+        setContent(data.content || '');
+        lastSavedContent.current = data.content || '';
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load clipboard');
       } finally {
