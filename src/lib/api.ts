@@ -1,11 +1,29 @@
 // API configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://shared-clipboard-i8et.vercel.app';
 
-export interface Clipboard {
-  id: string;
+export interface Card {
+  id: number;
+  clipboard_id: string;
   content: string;
+  user_name: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Clipboard {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  cards: Card[];
+}
+
+export interface CreateCardRequest {
+  content: string;
+  user_name?: string;
+}
+
+export interface UpdateCardRequest {
+  content: string;
 }
 
 export interface ApiError {
@@ -56,28 +74,77 @@ class ApiClient {
     return data;
   }
 
-  async updateClipboard(clipboardId: string, content: string): Promise<Clipboard> {
+  async deleteClipboard(clipboardId: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/clipboard/${clipboardId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ content }),
+      method: 'DELETE',
+      mode: 'cors',
     });
 
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Clipboard not found');
       }
-      throw new Error('Failed to update clipboard');
+      throw new Error('Failed to delete clipboard');
+    }
+  }
+
+  async createCard(clipboardId: string, data: CreateCardRequest): Promise<Card> {
+    const response = await fetch(`${this.baseUrl}/clipboard/${clipboardId}/cards`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+      mode: 'cors',
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Clipboard not found');
+      }
+      throw new Error('Failed to create card');
     }
 
     return response.json();
   }
 
+  async updateCard(cardId: number, data: UpdateCardRequest): Promise<Card> {
+    const response = await fetch(`${this.baseUrl}/cards/${cardId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+      mode: 'cors',
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Card not found');
+      }
+      throw new Error('Failed to update card');
+    }
+
+    return response.json();
+  }
+
+  async deleteCard(cardId: number): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/cards/${cardId}`, {
+      method: 'DELETE',
+      mode: 'cors',
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Card not found');
+      }
+      throw new Error('Failed to delete card');
+    }
+  }
+
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`);
+      const response = await fetch(`${this.baseUrl}/health`, { mode: 'cors' });
       return response.ok;
     } catch {
       return false;
