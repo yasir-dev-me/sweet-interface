@@ -27,15 +27,15 @@ const Index = () => {
   // }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="min-h-screen flex flex-col bg-background overflow-x-hidden">
       <Header />
       
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="max-w-2xl mx-auto text-center animate-slide-up">
           {/* Hero Icon */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-8 overflow-hidden">
             <div className="relative">
-              <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150" />
+              <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 pointer-events-none" />
               <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center">
                 <ClipboardList className="w-10 h-10 text-primary" />
               </div>
