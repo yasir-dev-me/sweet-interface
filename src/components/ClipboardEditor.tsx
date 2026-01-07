@@ -30,8 +30,12 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newCardContent, setNewCardContent] = useState('');
-  const [userName, setUserName] = useState(() => {
-    return localStorage.getItem('clipboard_username') || '';
+  const [userName] = useState(() => {
+    const stored = localStorage.getItem('clipboard_username');
+    if (stored) return stored;
+    const randomName = `User${Math.floor(100 + Math.random() * 900)}`;
+    localStorage.setItem('clipboard_username', randomName);
+    return randomName;
   });
   const { toast } = useToast();
 
@@ -58,11 +62,6 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
     fetchClipboard();
   }, [fetchClipboard]);
 
-  // Save username to localStorage
-  const handleUserNameChange = (name: string) => {
-    setUserName(name);
-    localStorage.setItem('clipboard_username', name);
-  };
 
   // Add new card
   const handleAddCard = async () => {
@@ -291,14 +290,8 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
 
       {/* Add New Card */}
       <div className="bg-card border border-border rounded-lg p-4 mb-6">
-        <h3 className="text-sm font-medium text-foreground mb-3">Add a new card</h3>
-        <div className="flex flex-col sm:flex-row gap-3 mb-3">
-          <Input
-            placeholder="Your name (optional)"
-            value={userName}
-            onChange={(e) => handleUserNameChange(e.target.value)}
-            className="sm:w-48"
-          />
+        <h3 className="text-sm font-medium text-foreground mb-3">Add a new card <span className="text-muted-foreground font-normal">as {userName}</span></h3>
+        <div className="flex flex-col sm:flex-row gap-3">
           <Input
             placeholder="Enter content for the new card..."
             value={newCardContent}
