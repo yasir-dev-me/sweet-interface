@@ -1,100 +1,145 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Copy, Check, Link, Clock, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, Clock, Loader2, Plus, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { api, Clipboard } from '@/lib/api';
+import { api, Clipboard, Card } from '@/lib/api';
+import { CardItem } from './CardItem';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface ClipboardEditorProps {
   clipboardId: string;
 }
 
 export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
-  const [content, setContent] = useState('');
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [copiedContent, setCopiedContent] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAddingCard, setIsAddingCard] = useState(false);
+  const [isDeletingClipboard, setIsDeletingClipboard] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newCardContent, setNewCardContent] = useState('');
+  const [userName, setUserName] = useState(() => {
+    return localStorage.getItem('clipboard_username') || '';
+  });
   const { toast } = useToast();
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSavedContent = useRef<string>('');
 
   // Fetch clipboard content
-  useEffect(() => {
-    const fetchClipboard = async () => {
-      try {
+  const fetchClipboard = useCallback(async (showRefreshing = false) => {
+    try {
+      if (showRefreshing) {
+        setIsRefreshing(true);
+      } else {
         setIsLoading(true);
-        setError(null);
-        const data = await api.getClipboard(clipboardId);
-        setClipboard(data);
-        setContent(data.content || '');
-        lastSavedContent.current = data.content || '';
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load clipboard');
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    fetchClipboard();
+      setError(null);
+      const data = await api.getClipboard(clipboardId);
+      setClipboard(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load clipboard');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   }, [clipboardId]);
 
-  // Auto-save with debounce
-  const saveContent = useCallback(async (newContent: string) => {
-    if (newContent === lastSavedContent.current) return;
-    
+  useEffect(() => {
+    fetchClipboard();
+  }, [fetchClipboard]);
+
+  // Save username to localStorage
+  const handleUserNameChange = (name: string) => {
+    setUserName(name);
+    localStorage.setItem('clipboard_username', name);
+  };
+
+  // Add new card
+  const handleAddCard = async () => {
+    if (!newCardContent.trim()) {
+      toast({
+        title: 'Empty content',
+        description: 'Please enter some content for the card',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      setIsSaving(true);
-      const data = await api.updateClipboard(clipboardId, newContent);
-      setClipboard(data);
-      lastSavedContent.current = newContent;
-      setHasChanges(false);
+      setIsAddingCard(true);
+      const card = await api.createCard(clipboardId, {
+        content: newCardContent,
+        user_name: userName || undefined,
+      });
+      setClipboard(prev => prev ? {
+        ...prev,
+        cards: [...prev.cards, card],
+      } : null);
+      setNewCardContent('');
+      toast({
+        title: 'Card added',
+        description: 'Your card has been added to the clipboard',
+      });
     } catch (err) {
       toast({
-        title: 'Failed to save',
-        description: err instanceof Error ? err.message : 'Could not save changes',
+        title: 'Failed to add card',
+        description: err instanceof Error ? err.message : 'Could not add card',
         variant: 'destructive',
       });
     } finally {
-      setIsSaving(false);
+      setIsAddingCard(false);
     }
-  }, [clipboardId, toast]);
-
-  // Handle content change with debounced auto-save
-  const handleContentChange = (newContent: string) => {
-    setContent(newContent);
-    setHasChanges(newContent !== lastSavedContent.current);
-
-    // Clear existing timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Set new timeout for auto-save (1.5 seconds)
-    saveTimeoutRef.current = setTimeout(() => {
-      saveContent(newContent);
-    }, 1500);
   };
 
-  // Copy content to clipboard
-  const copyContent = async () => {
+  // Update card
+  const handleUpdateCard = async (cardId: number, content: string) => {
+    const updatedCard = await api.updateCard(cardId, { content });
+    setClipboard(prev => prev ? {
+      ...prev,
+      cards: prev.cards.map(c => c.id === cardId ? updatedCard : c),
+    } : null);
+  };
+
+  // Delete card
+  const handleDeleteCard = async (cardId: number) => {
+    await api.deleteCard(cardId);
+    setClipboard(prev => prev ? {
+      ...prev,
+      cards: prev.cards.filter(c => c.id !== cardId),
+    } : null);
+    toast({
+      title: 'Card deleted',
+      description: 'The card has been removed',
+    });
+  };
+
+  // Delete entire clipboard
+  const handleDeleteClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(content);
-      setCopiedContent(true);
-      setTimeout(() => setCopiedContent(false), 2000);
+      setIsDeletingClipboard(true);
+      await api.deleteClipboard(clipboardId);
       toast({
-        title: 'Copied!',
-        description: 'Content copied to clipboard',
+        title: 'Clipboard deleted',
+        description: 'The clipboard and all cards have been deleted',
       });
-    } catch {
+      window.location.href = '/';
+    } catch (err) {
       toast({
-        title: 'Failed to copy',
-        description: 'Could not copy to clipboard',
+        title: 'Failed to delete',
+        description: err instanceof Error ? err.message : 'Could not delete clipboard',
         variant: 'destructive',
       });
+      setIsDeletingClipboard(false);
     }
   };
 
@@ -116,14 +161,6 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
         variant: 'destructive',
       });
     }
-  };
-
-  // Manual save
-  const handleManualSave = () => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveContent(content);
   };
 
   // Format date
@@ -178,7 +215,7 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border">
             <span className="font-mono text-sm text-muted-foreground">ID:</span>
-            <span className="font-mono text-sm text-foreground">{clipboardId.slice(0, 8)}...</span>
+            <span className="font-mono text-sm text-foreground">{clipboardId}</span>
           </div>
           {clipboard?.updated_at && (
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -189,49 +226,15 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Save status */}
-          <div className="flex items-center gap-2 mr-2">
-            {isSaving ? (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Saving...
-              </span>
-            ) : hasChanges ? (
-              <span className="text-sm text-primary animate-pulse-subtle">Unsaved changes</span>
-            ) : (
-              <span className="text-sm text-muted-foreground">All changes saved</span>
-            )}
-          </div>
-
-          {/* Action buttons */}
           <Button
             variant="outline"
             size="sm"
-            onClick={handleManualSave}
-            disabled={isSaving || !hasChanges}
+            onClick={() => fetchClipboard(true)}
+            disabled={isRefreshing}
             className="gap-1.5"
           >
-            <Save className="w-4 h-4" />
-            <span className="hidden sm:inline">Save</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyContent}
-            className="gap-1.5"
-          >
-            {copiedContent ? (
-              <>
-                <Check className="w-4 h-4 text-success" />
-                <span className="hidden sm:inline">Copied!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                <span className="hidden sm:inline">Copy</span>
-              </>
-            )}
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
 
           <Button
@@ -240,38 +243,113 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
             onClick={copyLink}
             className="gap-1.5"
           >
-            {copiedLink ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span className="hidden sm:inline">Copied!</span>
-              </>
+            <Link className="w-4 h-4" />
+            <span className="hidden sm:inline">
+              {copiedLink ? 'Copied!' : 'Share Link'}
+            </span>
+          </Button>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Delete</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Clipboard?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete this clipboard and all its cards. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteClipboard}
+                  disabled={isDeletingClipboard}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeletingClipboard ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
+      {/* Add New Card */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-6">
+        <h3 className="text-sm font-medium text-foreground mb-3">Add a new card</h3>
+        <div className="flex flex-col sm:flex-row gap-3 mb-3">
+          <Input
+            placeholder="Your name (optional)"
+            value={userName}
+            onChange={(e) => handleUserNameChange(e.target.value)}
+            className="sm:w-48"
+          />
+          <Input
+            placeholder="Enter content for the new card..."
+            value={newCardContent}
+            onChange={(e) => setNewCardContent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAddCard();
+              }
+            }}
+            className="flex-1"
+          />
+          <Button
+            onClick={handleAddCard}
+            disabled={isAddingCard || !newCardContent.trim()}
+            className="gap-1.5"
+          >
+            {isAddingCard ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <>
-                <Link className="w-4 h-4" />
-                <span className="hidden sm:inline">Share Link</span>
-              </>
+              <Plus className="w-4 h-4" />
             )}
+            Add Card
           </Button>
         </div>
       </div>
 
-      {/* Editor */}
-      <div className="relative">
-        <Textarea
-          value={content}
-          onChange={(e) => handleContentChange(e.target.value)}
-          placeholder="Start typing or paste your content here...
-
-Share this clipboard with anyone by copying the link above.
-Changes are saved automatically."
-          className="min-h-[60vh] font-mono text-sm resize-none bg-card border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all duration-200 p-6 leading-relaxed"
-        />
-        
-        {/* Character count */}
-        <div className="absolute bottom-4 right-4 text-xs text-muted-foreground bg-card/80 backdrop-blur-sm px-2 py-1 rounded">
-          {content.length.toLocaleString()} characters
-        </div>
+      {/* Cards List */}
+      <div className="space-y-4">
+        {clipboard?.cards.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <p>No cards yet. Add your first card above!</p>
+          </div>
+        ) : (
+          clipboard?.cards.map((card) => (
+            <CardItem
+              key={card.id}
+              card={card}
+              onUpdate={handleUpdateCard}
+              onDelete={handleDeleteCard}
+            />
+          ))
+        )}
       </div>
+
+      {/* Card count */}
+      {clipboard && clipboard.cards.length > 0 && (
+        <div className="mt-4 text-sm text-muted-foreground text-center">
+          {clipboard.cards.length} card{clipboard.cards.length !== 1 ? 's' : ''} in this clipboard
+        </div>
+      )}
     </div>
   );
 }
