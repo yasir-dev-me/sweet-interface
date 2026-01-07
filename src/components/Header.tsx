@@ -65,7 +65,7 @@ export function Header() {
               className="gap-1.5"
             >
               <Plus className="w-4 h-4" />
-              <span>New Clipboard</span>
+              <span className="hidden sm:inline">New Clipboard</span>
             </Button>
           </div>
         </div>
