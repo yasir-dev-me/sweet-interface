@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, Clock, Loader2, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Link, Clock, Loader2, Plus, Trash2, RefreshCw, QrCode, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -16,6 +17,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 interface ClipboardEditorProps {
   clipboardId: string;
@@ -247,6 +255,44 @@ export function ClipboardEditor({ clipboardId }: ClipboardEditorProps) {
               {copiedLink ? 'Copied!' : 'Share Link'}
             </span>
           </Button>
+
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+              >
+                <QrCode className="w-4 h-4" />
+                <span className="hidden sm:inline">QR Code</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-center">Scan to access clipboard</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-4 py-6">
+                <div className="p-4 bg-white rounded-xl border border-border shadow-sm">
+                  <QRCodeSVG
+                    value={window.location.href}
+                    size={200}
+                    level="H"
+                    marginSize={0}
+                    fgColor="hsl(var(--foreground))"
+                    bgColor="white"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground text-center max-w-xs">
+                  Scan this QR code with your phone to open this clipboard
+                </p>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border">
+                  <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">
+                    {window.location.href}
+                  </span>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
